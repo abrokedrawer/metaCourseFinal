@@ -2,24 +2,6 @@
 
 import React, { useState, useEffect } from 'react'
 
-// Mock API functions (replace with actual API calls)
-const fetchExistingBookings = async (date) => {
-  // In a real app, this would fetch from your backend
-  console.log(`Fetching bookings for date: ${date}`)
-  // Mock response - replace with actual API call
-  const mockBookings = [
-    { date: '2023-12-25', time: '18:00', guests: 4 },
-    { date: '2023-12-25', time: '20:00', guests: 2 }
-  ]
-  return mockBookings.filter(booking => booking.date === date)
-}
-
-const submitBooking = async (bookingData) => {
-  // In a real app, this would POST to your backend
-  console.log('Submitting booking:', bookingData)
-  return new Promise(resolve => setTimeout(() => resolve({ success: true }), 1000))
-}
-
 function BookingPage() {
   const [formData, setFormData] = useState({
     date: '',
@@ -27,7 +9,7 @@ function BookingPage() {
     guests: 1,
     occasion: ''
   })
-  const [existingBookings, setExistingBookings] = useState([])
+  const [allBookings, setAllBookings] = useState([])
   const [availableTimes, setAvailableTimes] = useState([
     '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
   ])
@@ -35,39 +17,28 @@ function BookingPage() {
   const [errors, setErrors] = useState({})
   const [isLoading, setIsLoading] = useState(false)
 
+  // Load bookings from localStorage on mount
+  useEffect(() => {
+    const savedBookings = localStorage.getItem('littleLemonBookings')
+    if (savedBookings) {
+      setAllBookings(JSON.parse(savedBookings))
+    }
+  }, [])
+
+  // Update available times when date or bookings change
   useEffect(() => {
     if (formData.date) {
-      setIsLoading(true)
-      fetchExistingBookings(formData.date)
-        .then(bookings => {
-          setExistingBookings(bookings)
-          updateAvailableTimes(bookings)
-          setIsLoading(false)
-        })
-        .catch(error => {
-          console.error('Error fetching bookings:', error)
-          setIsLoading(false)
-        })
+      const existing = allBookings.filter(b => b.date === formData.date)
+      const bookedTimes = existing.map(b => b.time)
+      setAvailableTimes([
+        '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
+      ].filter(time => !bookedTimes.includes(time)))
     }
-  }, [formData.date])
-
-  const updateAvailableTimes = (bookings) => {
-    const allTimes = ['17:00', '18:00', '19:00', '20:00', '21:00', '22:00']
-    const bookedTimes = bookings.map(booking => booking.time)
-    const available = allTimes.filter(time => !bookedTimes.includes(time))
-    setAvailableTimes(available)
-    
-    if (formData.time && !available.includes(formData.time)) {
-      setFormData(prev => ({ ...prev, time: '' }))
-    }
-  }
+  }, [formData.date, allBookings])
 
   const handleChange = (e) => {
     const { id, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [id]: value
-    }))
+    setFormData(prev => ({ ...prev, [id]: value }))
   }
 
   const validateForm = () => {
@@ -76,8 +47,8 @@ function BookingPage() {
     if (!formData.time) newErrors.time = 'Please select a time'
     if (formData.guests < 1 || formData.guests > 10) newErrors.guests = 'Please enter between 1-10 guests'
     
-    const isTimeBooked = existingBookings.some(
-      booking => booking.time === formData.time
+    const isTimeBooked = allBookings.some(
+      b => b.date === formData.date && b.time === formData.time
     )
     if (isTimeBooked) newErrors.time = 'This time slot is already booked'
     
@@ -85,34 +56,40 @@ function BookingPage() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
     
     if (validateForm()) {
       setIsLoading(true)
-      try {
-        const response = await submitBooking(formData)
-        if (response.success) {
-          setSubmitted(true)
-          setTimeout(() => {
-            setFormData({
-              date: '',
-              time: '',
-              guests: 1,
-              occasion: ''
-            })
-            setSubmitted(false)
-          }, 3000)
+      
+      // Simulate API delay
+      setTimeout(() => {
+        const newBooking = {
+          ...formData,
+          id: Date.now().toString(),
+          createdAt: new Date().toISOString()
         }
-      } catch (error) {
-        console.error('Booking failed:', error)
-        setErrors({ submit: 'Failed to make reservation. Please try again.' })
-      } finally {
+        const updatedBookings = [...allBookings, newBooking]
+        
+        localStorage.setItem('littleLemonBookings', JSON.stringify(updatedBookings))
+        setAllBookings(updatedBookings)
+        setSubmitted(true)
+        
+        setTimeout(() => {
+          setFormData({
+            date: '',
+            time: '',
+            guests: 1,
+            occasion: ''
+          })
+          setSubmitted(false)
+        }, 3000)
+        
         setIsLoading(false)
-      }
+      }, 500)
     }
   }
-
+  
   if (submitted) {
     return (
       <div className="min-h-screen bg-lemon-light py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
